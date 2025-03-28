@@ -2,8 +2,11 @@
 namespace App\Services;
 
 use App\Repository\AuthRepository;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
+use Laravel\Passport\Client;
 
 class AuthService
 {
@@ -39,18 +42,59 @@ class AuthService
      */
     public function userLogin($request)
     {
-        if (! (Auth::attempt(['email' => $request['email'], 'password' => $request['password']]))) {
-            return false;
+        if (!Auth::attempt(['email' => $request['email'], 'password' => $request['password']])) {
+            return response()->json(['error' => 'Unauthorized'], 401);
         }
 
-        $authUser = Auth::user();
-        $token    = $authUser->createToken('token')->accessToken;
+        // Get the password grant client
+        $client = Client::where('password_client', true)->first();
+        if (!$client) {
+            return response()->json(['error' => 'No password grant client found'], 500);
+        }
 
-        return [
-            'email' => $authUser->email,
-            'token' => $token,
-        ];
+        // Manually create a request to /oauth/token
+        $tokenRequest = Request::create('/oauth/token', 'POST', [
+            'grant_type'    => 'password',
+            'client_id'     => $client->id,
+            'client_secret' => $client->secret,
+            'username'      => $request->email,
+            'password'      => $request->password,
+            'scope'         => '',
+        ]);
+
+        // Handle the request internally
+        $response = app()->handle($tokenRequest);
+        return response()->json(json_decode($response->getContent(), true));
     }
+    // public function userLogin($request)
+    // {
+    //     if (! (Auth::attempt(['email' => $request['email'], 'password' => $request['password']]))) {
+    //         return false;
+    //     }
+
+    //     $url = env('APP_URL') . '/oauth/token';
+
+    //     $response = Http::asForm()->post($url, [
+    //         'grant_type'    => 'password',
+    //         'client_id'     => env('PASSPORT_PERSONAL_ACCESS_CLIENT_ID'),
+    //         'client_secret' => env('PASSPORT_PERSONAL_ACCESS_CLIENT_SECRET'),
+    //         'username'      => $request->email,
+    //         'password'      => $request->password,
+    //         'scope'         => '',
+    //     ]);
+
+    //     dd('hiii');
+
+    //     // dd($response->json());
+
+    //     $authUser = Auth::user();
+    //     $token    = $authUser->createToken('token')->accessToken;
+
+    //     return [
+    //         'email' => $authUser->email,
+    //         'token' => $token,
+    //     ];
+    // }
 
     /**
      * Function: userProfile
