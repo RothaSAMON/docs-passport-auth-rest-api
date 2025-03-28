@@ -124,4 +124,51 @@ class AuthService
     public function getAuthUser() {
         return Auth::user();
     }
+
+    /**
+     * Function: refreshToken
+     */
+    public function refreshToken($request)
+    {
+        $client = Client::where('password_client', true)->first();
+        if (!$client) {
+            return response()->json(['error' => 'No password grant client found'], 500);
+        }
+
+        // Manually create a request to /oauth/token
+        $tokenRequest = Request::create('/oauth/token', 'POST', [
+            'grant_type'    => 'refresh_token',
+            'refresh_token' => $request->refresh_token,
+            'client_id'     => $client->id,
+            'client_secret' => $client->secret,
+            'scope'         => '',
+        ]);
+
+        // Handle the request internally
+        $response = app()->handle($tokenRequest);
+        
+        // return response()->json(json_decode($response->getContent(), true));
+        $data = json_decode($response->getContent(), true);
+
+        // Only the required fields
+        return ([
+            'token_type'   => $data['token_type'] ?? null,
+            'expires_in'   => $data['expires_in'] ?? null,
+            'access_token' => $data['access_token'] ?? null,
+            'refresh_token'=> $data['refresh_token'] ?? null,
+        ]);
+    }
+
+    // public function refreshToken($request)
+    // {
+    //     $response = Http::asForm()->post(url('oauth/token'), [
+    //         'grant_type'    => 'refresh_token',
+    //         'refresh_token' => $request->refresh_token,
+    //         'client_id'     => env('PASSPORT_PERSONAL_ACCESS_CLIENT_ID'),
+    //         'client_secret' => env('PASSPORT_PERSONAL_ACCESS_CLIENT_SECRET'),
+    //         'scope'         => '',
+    //     ]);
+
+    //     dd($response->json());
+    // }
 }
